@@ -62,15 +62,13 @@ def home():
     return render_template("index.html", result=result, article_text=article_text)
 
 
-
 if __name__ == "__main__":
-    # Use safe default port if PORT env var not set
-    port = int(os.environ.get("PORT", 5000))
-    debug = os.environ.get("FLASK_DEBUG", "0") == "1"
-    
+    # Use reloader_type='stat' for Python 3.14 compatibility
     app.run(
         host="0.0.0.0",
-        port=port,
-        debug=debug,
+        port=int(os.environ.get("PORT", 5000)),
+        debug=True,
+        reloader_type="stat",
     )
+
 
