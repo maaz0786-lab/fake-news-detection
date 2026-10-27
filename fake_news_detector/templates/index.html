@@ -1,0 +1,250 @@
+<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Fake News Detection - BCA Project</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+    <button class="theme-toggle sun" id="themeToggle" aria-label="Toggle dark mode">&#9728;</button>
+
+    <div class="page">
+        <header class="header">
+            <h1>Fake News Detector</h1>
+            <p class="subtitle">ML + Internet Verification · Transparent &amp; Free</p>
+        </header>
+
+        <section class="card">
+            <p class="eyebrow">BCA Mini Project · Python, Machine Learning &amp; NLP</p>
+            <p class="intro">Paste a news headline or short article below to see what the model predicts, plus a live internet check.</p>
+
+            <form method="post" id="newsForm">
+                <label for="article_text">News text</label>
+                <textarea id="article_text" name="article_text" rows="7"
+                          placeholder="Paste a headline or article here...">{{ article_text }}</textarea>
+
+                <div class="examples">
+                    <h4>Try an example:</h4>
+                    <button type="button" class="example-btn" onclick="fillExample('The city council approved a new public library budget during its meeting on Tuesday.')">REAL example</button>
+                    <button type="button" class="example-btn" onclick="fillExample('Shocking miracle cure doctors hate! Click here now!')">FAKE example</button>
+                    <button type="button" class="example-btn" onclick="fillExample('The national weather service issued a warning for heavy rain in the coastal region.')">REAL example</button>
+                </div>
+
+                <div id="loading">
+                    <div class="spinner"></div>
+                    <div class="spinner-text">Searching the web and analyzing&hellip;</div>
+                </div>
+
+                <button type="submit" id="submitBtn">Check this text</button>
+            </form>
+
+            {% if result %}
+            <section class="result {{ result.label|lower }}" aria-live="polite">
+                <span class="badge {{ result.label|lower }}">{{ result.label }}</span>
+
+                <h2>Final prediction: {{ result.label }}</h2>
+
+                <div class="confidence-container">
+                    <div class="confidence-label">
+                        <span>Overall confidence</span>
+                        <span>{{ result.confidence }}%</span>
+                    </div>
+                    <div class="confidence-bar">
+                        <div class="confidence-fill {{ result.label|lower }}" style="width: {{ result.confidence }}%"></div>
+                    </div>
+                </div>
+
+                <div class="detail">
+                    <h3>ML model</h3>
+                    <p>Prediction: <strong>{{ result.ml_label }}</strong> |
+                       Confidence: {{ result.ml_confidence }}%</p>
+                </div>
+
+                {% if result.search_transparency is not none %}
+                <div class="detail internet">
+                    <h3>Internet verification (full transparency)</h3>
+
+                    <p><strong>Searched the public web using:</strong></p>
+                    <ul class="queries">
+                        {% for q in result.search_transparency.queries_used %}
+                        <li>"{{ q }}"</li>
+                        {% endfor %}
+                    </ul>
+
+                    {% if result.search_transparency.internet_available %}
+                    <p><strong>Internet access:</strong> Available ✅</p>
+                    {% else %}
+                    <p><strong>Internet access:</strong> Not available ❌ (offline or blocked)</p>
+                    {% endif %}
+
+                    {% if result.online_found %}
+                    <p><strong>Pages where text was found:</strong> {{ result.search_transparency.found_on_pages|length }} page(s)</p>
+
+                    <h4>Source pages with matching text:</h4>
+                    <ul class="found-pages">
+                        {% for page in result.search_transparency.found_on_pages %}
+                        <li>
+                            <strong>{{ page.title }}</strong><br>
+                            <a href="{{ page.url }}" target="_blank">{{ page.url }}</a><br>
+                            <span class="snippet">{{ page.snippet }}</span><br>
+                            <small>Matched via query: "{{ page.query }}"</small>
+                        </li>
+                        {% endfor %}
+                    </ul>
+                    {% else %}
+                    <p><strong>Pages where text was found:</strong> 0 page(s) — text not found on any searched page</p>
+                    {% endif %}
+
+                    <h4>Total pages researched:</h4>
+                    <p><strong>{{ result.search_transparency.searched_pages|length }} page(s)</strong> were checked on the public web:</p>
+                    <ul class="all-pages">
+                        {% for page in result.search_transparency.searched_pages %}
+                        <li>
+                            <strong>{{ page.title }}</strong><br>
+                            <a href="{{ page.url }}" target="_blank">{{ page.url }}</a><br>
+                            <span class="snippet">{{ page.snippet }}</span><br>
+                            <small>Query: "{{ page.query }}"</small>
+                        </li>
+                        {% endfor %}
+                    </ul>
+
+                    <p class="transparency-note">{{ result.search_transparency.note }}</p>
+                </div>
+                {% endif %}
+
+                <p class="reason">{{ result.reason }}</p>
+
+                <button type="button" class="share-btn" onclick="shareResult()">&#128722; Share result</button>
+
+                <script>
+                    addToHistory({{ article_text|tojson }}, {{ result.label|tojson }}, {{ result.confidence }});
+                </script>
+            </section>
+
+            <script>
+                addToHistory({{ article_text|tojson }}, {{ result.label|tojson }}, {{ result.confidence }});
+            </script>
+
+            <section class="history-section">
+                <h3>Recent checks
+                    <button type="button" class="clear-history" onclick="clearHistory()">Clear</button>
+                </h3>
+                <div class="history-list" id="historyList">
+                    <!-- History items injected by JavaScript -->
+                </div>
+            </section>
+            {% endif %}
+
+            <aside class="notice">
+                <strong>Important:</strong> This is a learning demo. Internet verification checks whether similar text
+                appears on the public web; it does not prove a story is true or false. The ML model is trained on a small,
+                made-up example dataset. Check reliable sources before sharing news.
+            </aside>
+        </section>
+        <footer>Built with Flask, scikit-learn and TF-IDF text features.</footer>
+    </div>
+
+    <script>
+        // ---------- Dark mode ----------
+        const themeToggle = document.getElementById('themeToggle');
+        const savedTheme = localStorage.getItem('theme');
+        if (savedTheme === 'dark') {
+            document.documentElement.setAttribute('data-theme', 'dark');
+            themeToggle.textContent = '&#9729;';
+            themeToggle.className = 'theme-toggle moon';
+        }
+
+        themeToggle.addEventListener('click', () => {
+            const isDark = document.documentElement.getAttribute('data-theme') === 'dark';
+            if (isDark) {
+                document.documentElement.removeAttribute('data-theme');
+                localStorage.setItem('theme', 'light');
+                themeToggle.textContent = '&#9728;';
+                themeToggle.className = 'theme-toggle sun';
+            } else {
+                document.documentElement.setAttribute('data-theme', 'dark');
+                localStorage.setItem('theme', 'dark');
+                themeToggle.textContent = '&#9729;';
+                themeToggle.className = 'theme-toggle moon';
+            }
+        });
+
+        // ---------- Example buttons ----------
+        function fillExample(text) {
+            document.getElementById('article_text').value = text;
+        }
+
+        // ---------- Loading spinner ----------
+        const form = document.getElementById('newsForm');
+        const submitBtn = document.getElementById('submitBtn');
+        const loading = document.getElementById('loading');
+
+        form.addEventListener('submit', () => {
+            submitBtn.disabled = true;
+            loading.style.display = 'block';
+        });
+
+        // ---------- History (localStorage) ----------
+        function addToHistory(text, label, confidence) {
+            const history = JSON.parse(localStorage.getItem('fn_history') || '[]');
+            const entry = {
+                text: text.substring(0, 80) + (text.length > 80 ? '...' : ''),
+                label: label,
+                confidence: confidence,
+                time: new Date().toLocaleTimeString([], {hour: '2-digit', minute: '2-digit'})
+            };
+            history.unshift(entry);
+            if (history.length > 5) history.pop();
+            localStorage.setItem('fn_history', JSON.stringify(history));
+            renderHistory();
+        }
+
+        function renderHistory() {
+            const history = JSON.parse(localStorage.getItem('fn_history') || '[]');
+            const list = document.getElementById('historyList');
+            if (!list) return;
+            list.innerHTML = history.map(item => `
+                <div class="history-item">
+                    <div class="text">"${escapeHtml(item.text)}"</div>
+                    <div class="meta">
+                        <span class="badge ${item.label.toLowerCase()}">${item.label}</span>
+                        <span>${item.confidence}%</span>
+                        <span>${item.time}</span>
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        function clearHistory() {
+            localStorage.removeItem('fn_history');
+            renderHistory();
+        }
+
+        // ---------- Share ----------
+        function shareResult() {
+            const resultLabel = document.querySelector('.badge').textContent;
+            const confidence = document.querySelector('.confidence-label span:last-child').textContent;
+            const text = document.getElementById('article_text').value;
+            const summary = `Fake News Detector result: ${resultLabel} (${confidence} confidence)\nText: "${text}"\n\nBuilt with Flask + scikit-learn.`;
+            if (navigator.share) {
+                navigator.share({ title: 'Fake News Detector', text: summary });
+            } else {
+                navigator.clipboard.writeText(summary).then(() => {
+                    alert('Result copied to clipboard!');
+                });
+            }
+        }
+
+        // ---------- Utility ----------
+        function escapeHtml(text) {
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+
+        // ---------- Initialize ----------
+        renderHistory();
+    </script>
+</body>
+</html>
